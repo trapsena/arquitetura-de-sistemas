@@ -1,22 +1,20 @@
-const express = require("express");
-const router = express.Router();
+const express = require('express');
 const {
   listarProdutos,
-  buscarProdutoPorId,
-  adicionarProduto,
-  atualizarProduto
-} = require("./productController"); // ajuste o caminho se necessário
+  buscarProduto,
+  criarProduto,
+  atualizarProduto,
+  deletarProduto,
+  atualizarEstoque
+} = require('../controllers/productController');
 
-// Listar todos os produtos
-router.get("/", listarProdutos);
+const router = express.Router();
 
-// Buscar produto por ID
-router.get("/:id", buscarProdutoPorId);
-
-// Adicionar novo produto
-router.post("/", adicionarProduto);
-
-// Atualizar produto existente
-router.put("/:id", atualizarProduto);
+router.get('/', listarProdutos);
+router.get('/:id', buscarProduto);
+router.post('/', criarProduto);
+router.put('/:id', atualizarProduto);
+router.delete('/:id', deletarProduto);
+router.patch('/:id/estoque', atualizarEstoque);
 
 module.exports = router;

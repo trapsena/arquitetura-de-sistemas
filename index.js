@@ -1,12 +1,16 @@
 const express = require("express");
 const app = express();
 const PORT = 3000;
-const productRoutes = require("./routes/productRoutes")
+const userRoutes = require('./routes/userRoutes');
+const productRoutes = require('./routes/productRoutes');
+const orderRoutes = require('./routes/orderRoutes');
 
 // Middleware para interpretar JSON
 app.use(express.json());
 
-app.use("/products",productRoutes)
+app.use("/products", productRoutes);
+app.use("/orders", orderRoutes);
+app.use("/users", userRoutes);
 
 // Rota inicial
 app.get("/", (req, res) => {
