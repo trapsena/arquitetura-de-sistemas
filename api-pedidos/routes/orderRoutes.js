@@ -16,4 +16,9 @@ router.get('/:id', buscarPedido);
 // Criar novo pedido
 router.post('/', criarPedido);
 
+
+// Atualizar status do pedido
+const { atualizarStatusPedido } = require('../controllers/orderController');
+router.patch('/:id', atualizarStatusPedido);
+
 module.exports = router;

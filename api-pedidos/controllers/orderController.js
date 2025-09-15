@@ -1,3 +1,20 @@
+// PATCH /orders/:id - Atualizar status do pedido
+const atualizarStatusPedido = async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  if (!status) {
+    return res.status(400).json({ erro: 'Status não informado' });
+  }
+  try {
+    const pedido = await Pedido.findById(id);
+    if (!pedido) return res.status(404).json({ erro: 'Pedido não encontrado' });
+    pedido.status = status;
+    await pedido.save();
+    res.json({ mensagem: 'Status do pedido atualizado', pedido });
+  } catch (error) {
+    res.status(500).json({ erro: 'Erro ao atualizar status do pedido', detalhe: error.message });
+  }
+};
 const axios = require("axios");
 const Pedido = require("../models/Order");
 
@@ -94,5 +111,6 @@ const criarPedido = async (req, res) => {
 module.exports = {
   listarPedidos,
   buscarPedido,
-  criarPedido
+  criarPedido,
+  atualizarStatusPedido
 };
