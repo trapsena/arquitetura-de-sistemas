@@ -62,19 +62,40 @@ const deletarProduto = async (req, res) => {
   }
 };
 
+
+
+// PATCH /products/:id/estoque
 const atualizarEstoque = async (req, res) => {
   const { id } = req.params;
-  const { estoque } = req.body;
+  const { quantidade } = req.body;
+
+  if (!quantidade || quantidade <= 0) {
+    return res.status(400).json({ erro: 'Quantidade inválida' });
+  }
+
   try {
-    const produto = await prisma.produto.update({
+    const produto = await prisma.produto.findUnique({ where: { id: parseInt(id) } });
+    if (!produto) return res.status(404).json({ erro: 'Produto não encontrado' });
+
+    if (produto.estoque < quantidade) {
+      return res.status(400).json({ erro: 'Estoque insuficiente' });
+    }
+
+    const atualizado = await prisma.produto.update({
       where: { id: parseInt(id) },
-      data: { estoque: parseInt(estoque) }
+      data: { estoque: { decrement: quantidade } }
     });
-    res.json(produto);
+
+    res.json(atualizado);
   } catch (error) {
     res.status(500).json({ erro: 'Erro ao atualizar estoque', detalhe: error.message });
   }
 };
+
+module.exports = {
+  atualizarEstoque
+};
+
 
 // Exportando todos os controllers
 module.exports = {
