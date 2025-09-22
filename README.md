@@ -34,6 +34,16 @@ Comunicação entre serviços é feita via **HTTP (Axios)**.
 
 ---
 
+## Tecnologias Usadas
+
+- **Node.js + Express** → APIs REST  
+- **Prisma ORM** → Postgres (Produtos, Usuários, Pagamentos)  
+- **Mongoose** → MongoDB (Pedidos)  
+- **Axios** → Comunicação entre microserviços  
+- **Docker + Docker Compose** → Orquestração de containers  
+- **PostgreSQL & MongoDB Atlas** → Bancos de dados  
+
+---
 ## Como Rodar
 
 ### 1) Clonar o projeto
