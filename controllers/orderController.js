@@ -1,3 +1,23 @@
+const axios = require('axios');
+
+// Funções auxiliares para checar usuário e produto em outros serviços
+async function checarUsuario(usuarioId) {
+  try {
+    const res = await axios.get(`http://localhost:3002/users/${usuarioId}`);
+    return res.data;
+  } catch (err) {
+    return null;
+  }
+}
+
+async function checarProduto(produtoId) {
+  try {
+    const res = await axios.get(`http://localhost:3001/products/${produtoId}`);
+    return res.data;
+  } catch (err) {
+    return null;
+  }
+}
 const prisma = require('../prismaClient.js');
 
 // GET /pedidos
@@ -22,60 +42,34 @@ const listarPedidos = async (req, res) => {
   }
 };
 
-// GET /pedidos/:id
-const buscarPedido = async (req, res) => {
-  const { id } = req.params;
   try {
-    const pedido = await prisma.pedido.findUnique({
-      where: { id: parseInt(id) },
-      include: {
-        itens: { include: { produto: true } },
-        usuario: true
+    // Checa usuário via API de usuários
+    const usuario = await checarUsuario(usuarioId);
+    if (!usuario) {
+      return res.status(404).json({ erro: 'Usuário não encontrado' });
+    }
+
+    // Checa produtos via API de produtos
+    for (const item of itens) {
+      const produto = await checarProduto(item.produtoId);
+      if (!produto) {
+        return res.status(404).json({ erro: `Produto ID ${item.produtoId} não encontrado` });
       }
+      if (produto.estoque < item.quantidade) {
+        return res.status(400).json({ erro: `Estoque insuficiente para ${produto.nome}` });
+      }
+    }
+
+    // Aqui você criaria o pedido no seu banco de pedidos (MongoDB, etc)
+    // Exemplo de resposta simulada:
+    return res.status(201).json({
+      mensagem: 'Pedido criado com sucesso (simulado)',
+      usuarioId,
+      itens
     });
-    if (!pedido) return res.status(404).json({ erro: 'Pedido não encontrado' });
-    // Calcula o total do pedido
-    const total = pedido.itens.reduce((soma, item) => {
-      return soma + (item.quantidade * (item.produto?.preco || 0));
-    }, 0);
-    res.json({ ...pedido, total });
   } catch (error) {
-    res.status(500).json({ erro: 'Erro ao buscar pedido', detalhe: error.message });
+    res.status(500).json({ erro: 'Erro ao criar pedido', detalhe: error.message });
   }
-};
-
-// POST /pedidos
-const criarPedido = async (req, res) => {
-  const { usuarioId, itens } = req.body;
-
-  if (!usuarioId || !Array.isArray(itens) || itens.length === 0) {
-    return res.status(400).json({ erro: 'Usuário ou itens inválidos' });
-  }
-
-  try {
-    const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId } });
-    if (!usuario) return res.status(404).json({ erro: 'Usuário não encontrado' });
-
-    // Verifica estoque
-    for (const item of itens) {
-      const produto = await prisma.produto.findUnique({ where: { id: item.produtoId } });
-      if (!produto) return res.status(404).json({ erro: `Produto ${item.produtoId} não encontrado` });
-      if (produto.estoque < item.quantidade) return res.status(400).json({ erro: `Estoque insuficiente para ${produto.nome}` });
-    }
-
-    // Buscar preços dos produtos para calcular o total
-    let total = 0;
-    for (const item of itens) {
-      const produto = await prisma.produto.findUnique({ where: { id: item.produtoId } });
-      total += (produto?.preco || 0) * item.quantidade;
-    }
-
-    // Cria pedido com itens, total e decrementa estoque dentro de uma transação
-    const pedido = await prisma.$transaction(async (tx) => {
-      const novoPedido = await tx.pedido.create({
-        data: {
-          usuarioId,
-          total,
           itens: {
             create: itens.map(item => ({
               produtoId: item.produtoId,
@@ -105,7 +99,7 @@ const criarPedido = async (req, res) => {
 const confirmarPagamento = async (req, res) => {
   const { pedidoId, valorPago, pagamentos } = req.body;
 
-  if (!pedidoId || isNaN(parseInt(pedidoId))) {
+  if (!pedidoId) {
     return res.status(400).json({ erro: 'ID do pedido inválido' });
   }
 
@@ -118,35 +112,31 @@ const confirmarPagamento = async (req, res) => {
   }
 
   try {
-    const pedido = await prisma.pedido.findUnique({
-      where: { id: parseInt(pedidoId) }
-    });
-
-    if (!pedido) return res.status(404).json({ erro: 'Pedido não encontrado' });
+    // Buscar pedido via microserviço de pedidos
+    let pedido;
+    try {
+      const resPedido = await axios.get(`http://localhost:3004/orders/${pedidoId}`);
+      pedido = resPedido.data;
+    } catch (err) {
+      return res.status(404).json({ erro: 'Pedido não encontrado' });
+    }
 
     // Verifica se algum pagamento falhou
     const falhou = pagamentos.some(p => p.status === 'FALHA');
 
     if (falhou) {
-      await prisma.pedido.update({
-        where: { id: parseInt(pedidoId) },
-        data: { status: 'CANCELADO' }
-      });
+      // Aqui você pode chamar uma rota PATCH/PUT do serviço de pedidos para atualizar o status, se desejar
       return res.status(400).json({ erro: 'Pagamento falhou. Pedido cancelado.' });
     }
 
     if (valorPago < pedido.total) {
-      return res.status(400).json({ erro: `Valor insuficiente. Total do pedido: R$ ${pedido.total.toFixed(2)}, valor pago: R$ ${valorPago.toFixed(2)}` });
+      return res.status(400).json({ erro: `Valor insuficiente. Total do pedido: R$ ${pedido.total?.toFixed(2) || 0}, valor pago: R$ ${valorPago.toFixed(2)}` });
     }
 
-    const pedidoAtualizado = await prisma.pedido.update({
-      where: { id: parseInt(pedidoId) },
-      data: { status: 'PAGO' }
-    });
-
+    // Aqui você pode chamar uma rota PATCH/PUT do serviço de pedidos para atualizar o status para PAGO, se desejar
     res.json({
       mensagem: 'Pedido atualizado para PAGO',
-      pedido: pedidoAtualizado
+      pedido: pedido
     });
   } catch (error) {
     res.status(500).json({ erro: 'Erro ao confirmar pagamento', detalhe: error.message });

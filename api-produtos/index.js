@@ -1,25 +1,13 @@
 const express = require("express");
-const app = express();
-const PORT = 3001;
-const productRoutes = require('./routes/productRoutes');
+const productRoutes = require("./routes/productRoutes");
 
-// Middleware para interpretar JSON
+const app = express();
 app.use(express.json());
 
+// Rotas
 app.use("/products", productRoutes);
 
-// Rota inicial
-app.get("/", (req, res) => {
-  res.send("🚀 Backend com Express funcionando!");
-});
-
-// Exemplo de rota com POST
-app.post("/usuarios", (req, res) => {
-  const { nome, idade } = req.body;
-  res.json({ message: `Usuário ${nome}, idade ${idade}, criado com sucesso!` });
-});
-
-// Inicia servidor
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
+  console.log(`API Produtos rodando na porta ${PORT}`);
 });

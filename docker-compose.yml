@@ -1,36 +1,98 @@
 version: '3.8'
 
 services:
-  postgres-db:
+  # -------------------
+  # BANCOS DE DADOS
+  # -------------------
+  produtos-db:
     image: postgres:15
-    container_name: postgres_container
-    restart: always
     environment:
-      POSTGRES_DB: ecommerce
-      POSTGRES_PASSWORD: naouseadmin
-      # POSTGRES_USER: usuario_postgres
-      # POSTGRES_DB: senha_postgres
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: produtos
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
-      - postgres_db_data:/var/lib/postgresql/data
+      - produtos_data:/var/lib/postgresql/data
 
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: pgadmin4_container
-    restart: always
+  usuarios-db:
+    image: postgres:15
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: usuarios
     ports:
-      - "5050:80"
+      - "5434:5432"
     volumes:
-      - pgadmin_data:/var/lib/pgadmin
+      - usuarios_data:/var/lib/postgresql/data
+
+  pagamentos-db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: pagamentos
+    ports:
+      - "5435:5432"
+    volumes:
+      - pagamentos_data:/var/lib/postgresql/data
+
+  pedidos-db:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    volumes:
+      - pedidos_data:/data/db
+
+  # -------------------
+  # MICRO SERVIÇOS
+  # -------------------
+  api-produtos:
+    build: ./api-produtos
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: "postgresql://user:pass@produtos-db:5432/produtos"
+      PORT: 3001
     depends_on:
-      - postgres-db
+      - produtos-db
+
+  api-usuarios:
+    build: ./api-usuarios
+    ports:
+      - "3002:3002"
+    environment:
+      DATABASE_URL: "postgresql://user:pass@usuarios-db:5432/usuarios"
+      PORT: 3002
+    depends_on:
+      - usuarios-db
+
+  api-pagamentos:
+    build: ./api-pagamentos
+    ports:
+      - "3003:3003"
+    environment:
+      DATABASE_URL: "postgresql://user:pass@pagamentos-db:5432/pagamentos"
+      MONGO_URL: "mongodb://pedidos-db:27017/pedidos"
+      PORT: 3003
+    depends_on:
+      - pagamentos-db
+      - pedidos-db
+
+  api-pedidos:
+    build: ./api-pedidos
+    ports:
+      - "3004:3004"
+    environment:
+      MONGO_URL: "mongodb://pedidos-db:27017/pedidos"
+      PORT: 3004
+    depends_on:
+      - pedidos-db
+      - api-produtos
+      - api-usuarios
 
 volumes:
-  postgres_db_data:
-    driver: local
-  pgadmin_data:
-    driver: local
+  produtos_data:
+  usuarios_data:
+  pagamentos_data:
+  pedidos_data:
