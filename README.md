@@ -98,6 +98,7 @@ cd api-pagamentos && npm install && node index.js
 - `POST /payments/confirmar` → Confirma pagamento, atualiza pedido e estoque  
 
 ---
+<<<<<<< HEAD
 # E-commerce Microservices
 
 Este projeto implementa um **e-commerce distribuído em microserviços**, onde cada domínio (Produtos, Usuários, Pedidos e Pagamentos) possui sua própria API e banco de dados.  
@@ -386,3 +387,5 @@ Isso sobe PostgreSQL + PgAdmin + MongoDB (ou usa Atlas se configurado).
 - `POST /payments/confirmar` → Confirma pagamento, atualiza pedido e estoque  
 
 ---
+=======
+>>>>>>> bac62a104e61effa34af6476d0d07a115376d216
