@@ -57,7 +57,7 @@ const criarPedido = async (req, res) => {
     // Buscar usuário no microserviço de usuários
     let usuario;
     try {
-      const resUser = await axios.get(`http://localhost:3002/users/${usuarioId}`);
+      const resUser = await axios.get(`http://api-usuarios:3002/users/${usuarioId}`);
       usuario = resUser.data;
     } catch (err) {
       return res.status(404).json({ erro: "Usuário não encontrado" });
@@ -68,7 +68,7 @@ const criarPedido = async (req, res) => {
     for (const item of itens) {
       let produto;
       try {
-        const resProd = await axios.get(`http://localhost:3001/products/${item.produtoId}`);
+        const resProd = await axios.get(`http://api-produtos:3001/products/${item.produtoId}`);
         produto = resProd.data;
       } catch (err) {
         return res.status(404).json({ erro: `Produto ID ${item.produtoId} não encontrado` });

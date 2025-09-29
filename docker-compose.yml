@@ -73,7 +73,8 @@ services:
       - "3003:3003"
     environment:
       DATABASE_URL: "postgresql://user:pass@pagamentos-db:5432/pagamentos"
-      MONGO_URL: "mongodb://pedidos-db:27017/pedidos"
+      MONGO_URL: "mongodb+srv://user:pass@pedidos.5vami6u.mongodb.net/?retryWrites=true&w=majority&appName=Pedidos"
+      ORDER_API_URL: "http://api-pedidos:3004"
       PORT: 3003
     depends_on:
       - pagamentos-db
@@ -84,7 +85,7 @@ services:
     ports:
       - "3004:3004"
     environment:
-      MONGO_URL: "mongodb://pedidos-db:27017/pedidos"
+      MONGO_URL: "mongodb+srv://user:pass@pedidos.5vami6u.mongodb.net/?retryWrites=true&w=majority&appName=Pedidos"
       PORT: 3004
     depends_on:
       - pedidos-db

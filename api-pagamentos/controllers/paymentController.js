@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const axios = require('axios');
 const prisma = new PrismaClient();
+const api = require('../config/axios');
 
 // POST /payments/confirmar
 const confirmarPagamento = async (req, res) => {
@@ -21,7 +22,7 @@ const confirmarPagamento = async (req, res) => {
     // 1) Buscar pedido via microserviço de pedidos
     let pedido;
     try {
-      const resPedido = await axios.get(`http://localhost:3004/orders/${pedidoId}`);
+      const resPedido = await api.get(`/orders/${pedidoId}`);
       pedido = resPedido.data;
     } catch (err) {
       return res.status(404).json({ erro: 'Pedido não encontrado' });
@@ -59,7 +60,7 @@ const confirmarPagamento = async (req, res) => {
 
     // 5) Atualizar status do pedido para PAGO via microserviço de pedidos (exemplo PATCH)
     try {
-      await axios.patch(`http://localhost:3004/orders/${pedidoId}`, { status: 'PAGO' });
+      await api.patch(`/orders/${pedidoId}`, { status: 'PAGO' });
       pedido.status = 'PAGO';
     } catch (err) {
       // Se não conseguir atualizar, apenas loga
@@ -68,7 +69,7 @@ const confirmarPagamento = async (req, res) => {
 
     // 6) Atualizar estoque dos produtos no microserviço de produtos
     for (const item of pedido.itens) {
-      await axios.patch(`http://localhost:3001/products/${item.produtoId}/estoque`, {
+      await axios.patch(`http://api-produtos:3001/products/${item.produtoId}/estoque`, {
         quantidade: item.quantidade
       });
     }
