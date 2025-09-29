@@ -1,18 +1,20 @@
-// PATCH /orders/:id - Atualizar status do pedido
+
+// PATCH /orders/:id - Atualizar status e método do pedido
 const atualizarStatusPedido = async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
-  if (!status) {
-    return res.status(400).json({ erro: 'Status não informado' });
-  }
+  const { status, metodoPagamento } = req.body;
+
   try {
     const pedido = await Pedido.findById(id);
     if (!pedido) return res.status(404).json({ erro: 'Pedido não encontrado' });
-    pedido.status = status;
+
+    if (status) pedido.status = status;
+    if (metodoPagamento) pedido.metodoPagamento = metodoPagamento;
+
     await pedido.save();
-    res.json({ mensagem: 'Status do pedido atualizado', pedido });
+    res.json({ mensagem: 'Pedido atualizado', pedido });
   } catch (error) {
-    res.status(500).json({ erro: 'Erro ao atualizar status do pedido', detalhe: error.message });
+    res.status(500).json({ erro: 'Erro ao atualizar pedido', detalhe: error.message });
   }
 };
 const axios = require("axios");
@@ -97,7 +99,9 @@ const criarPedido = async (req, res) => {
         email: usuario.email
       },
       itens: itensComSnapshot,
-      total
+      total,
+      status: "AGUARDANDO PAGAMENTO",
+      metodoPagamento: null // definido após o pagamento
     });
 
     await pedido.save();

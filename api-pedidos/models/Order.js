@@ -20,6 +20,7 @@ const PedidoSchema = new mongoose.Schema({
     enum: ["AGUARDANDO PAGAMENTO", "FALHA NO PAGAMENTO", "PAGO", "CANCELADO"],
     default: "AGUARDANDO PAGAMENTO"
   },
+  metodoPagamento: { type: String, default: null }, // 👈 novo campo
   criadoEm: { type: Date, default: Date.now },
   itens: [PedidoItemSchema],
   total: { type: Number, required: true }
