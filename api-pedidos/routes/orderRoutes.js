@@ -3,6 +3,7 @@ const {
   listarPedidos,
   buscarPedido,
   criarPedido,
+  listarPedidosPorUsuario,
 } = require('../controllers/orderController');
 
 const router = express.Router();
@@ -12,6 +13,9 @@ router.get('/', listarPedidos);
 
 // Buscar pedido por ID
 router.get('/:id', buscarPedido);
+
+// Listar pedidos por usuário
+router.get('/usuario/:usuarioId', listarPedidosPorUsuario);
 
 // Criar novo pedido
 router.post('/', criarPedido);

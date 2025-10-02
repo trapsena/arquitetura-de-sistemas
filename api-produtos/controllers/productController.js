@@ -69,7 +69,7 @@ const atualizarEstoque = async (req, res) => {
   const { id } = req.params;
   const { quantidade } = req.body;
 
-  if (!quantidade || quantidade <= 0) {
+  if (quantidade === undefined || isNaN(quantidade)) {
     return res.status(400).json({ erro: 'Quantidade inválida' });
   }
 
@@ -77,13 +77,18 @@ const atualizarEstoque = async (req, res) => {
     const produto = await prisma.produto.findUnique({ where: { id: parseInt(id) } });
     if (!produto) return res.status(404).json({ erro: 'Produto não encontrado' });
 
-    if (produto.estoque < quantidade) {
+    // se for diminuir
+    if (quantidade < 0 && produto.estoque < Math.abs(quantidade)) {
       return res.status(400).json({ erro: 'Estoque insuficiente' });
     }
 
     const atualizado = await prisma.produto.update({
       where: { id: parseInt(id) },
-      data: { estoque: { decrement: quantidade } }
+      data: {
+        estoque: quantidade > 0
+          ? { increment: quantidade }
+          : { decrement: Math.abs(quantidade) }
+      }
     });
 
     res.json(atualizado);
@@ -91,6 +96,7 @@ const atualizarEstoque = async (req, res) => {
     res.status(500).json({ erro: 'Erro ao atualizar estoque', detalhe: error.message });
   }
 };
+
 
 module.exports = {
   atualizarEstoque

@@ -112,9 +112,25 @@ const criarPedido = async (req, res) => {
   }
 };
 
+const listarPedidosPorUsuario = async (req, res) => {
+  const { usuarioId } = req.params;
+
+  try {
+    const pedidos = await Pedido.find({ usuarioId: Number(usuarioId) });
+    if (!pedidos || pedidos.length === 0) {
+      return res.status(404).json({ erro: "Nenhum pedido encontrado para este usuário" });
+    }
+
+    res.json(pedidos);
+  } catch (error) {
+    res.status(500).json({ erro: "Erro ao buscar pedidos do usuário", detalhe: error.message });
+  }
+};
+
 module.exports = {
   listarPedidos,
   buscarPedido,
   criarPedido,
-  atualizarStatusPedido
+  atualizarStatusPedido,
+  listarPedidosPorUsuario
 };
