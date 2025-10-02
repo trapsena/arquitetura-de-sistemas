@@ -8,6 +8,6 @@ RUN npm install
 COPY . .
 RUN npx prisma generate
 
-EXPOSE 3002
 
-CMD ["node", "index.js"]
+EXPOSE 3002
+CMD ["sh", "-c", "npx prisma migrate deploy && node index.js"]
