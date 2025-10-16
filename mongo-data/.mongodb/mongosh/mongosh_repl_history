@@ -1,0 +1,4 @@
+cd ..
+show dbs
+use admin
+show dbs

@@ -39,10 +39,17 @@ services:
 
   pedidos-db:
     image: mongo:6
+    container_name: pedidos-db
+    restart: always
     ports:
       - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: test
+      MONGO_INITDB_ROOT_USERNAME: user
+      MONGO_INITDB_ROOT_PASSWORD: pass
     volumes:
-      - pedidos_data:/data/db
+      - ./mongo-data:/data/db
+      - ./api-pedidos/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
 
   # -------------------
   # MICRO SERVIÇOS
@@ -73,7 +80,7 @@ services:
       - "3003:3003"
     environment:
       DATABASE_URL: "postgresql://user:pass@pagamentos-db:5432/pagamentos"
-      MONGO_URL: "mongodb+srv://user:pass@pedidos.5vami6u.mongodb.net/?retryWrites=true&w=majority&appName=Pedidos"
+      MONGO_URL: "mongodb://user:pass@pedidos-db:27017/pedidos?authSource=admin"
       ORDER_API_URL: "http://api-pedidos:3004"
       PORT: 3003
     depends_on:
@@ -85,7 +92,7 @@ services:
     ports:
       - "3004:3004"
     environment:
-      MONGO_URL: "mongodb+srv://user:pass@pedidos.5vami6u.mongodb.net/?retryWrites=true&w=majority&appName=Pedidos"
+      MONGO_URL: "mongodb://user:pass@pedidos-db:27017/pedidos?authSource=admin"
       PORT: 3004
     depends_on:
       - pedidos-db
