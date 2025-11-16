@@ -1,145 +1,130 @@
 const { PrismaClient } = require('@prisma/client');
 const axios = require('axios');
+const amqp = require('amqplib');
 const prisma = new PrismaClient();
 const api = require('../config/axios');
+
+const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://admin:admin@rabbitmq:5672';
+const EXCHANGE_NAME = 'transacoes_durable_exchange';
+const ROUTING_KEY = 'transacao.critica';
+
+async function publishEvent(transacao) {
+  try {
+    const connection = await amqp.connect(RABBITMQ_URL);
+    const channel = await connection.createChannel();
+
+    await channel.assertExchange(EXCHANGE_NAME, 'direct', { durable: true });
+    channel.publish(EXCHANGE_NAME, ROUTING_KEY, Buffer.from(JSON.stringify(transacao)), {
+      persistent: true, // garante que não se perca se o broker cair
+    });
+
+    console.log(`📤 Evento enviado para auditoria: ${transacao.status.toUpperCase()} | Pedido ${transacao.pedidoId}`);
+
+    await channel.close();
+    await connection.close();
+  } catch (err) {
+    console.error('❌ Falha ao enviar evento para RabbitMQ:', err.message);
+  }
+}
 
 // POST /payments/confirmar
 const confirmarPagamento = async (req, res) => {
   const { pedidoId, pagamentos } = req.body;
 
-  if (!pedidoId) {
-    return res.status(400).json({ erro: 'ID do pedido inválido' });
-  }
-  if (!Array.isArray(pagamentos) || pagamentos.length === 0) {
+  if (!pedidoId) return res.status(400).json({ erro: 'ID do pedido inválido' });
+  if (!Array.isArray(pagamentos) || pagamentos.length === 0)
     return res.status(400).json({ erro: 'Pagamentos inválidos' });
-  }
 
   try {
-    // 1) Buscar pedido via microserviço de pedidos
+    // 1) Buscar pedido
     let pedido;
     try {
       const resPedido = await api.get(`/orders/${pedidoId}`);
       pedido = resPedido.data;
-
-      // Validação adicional: Verifica se o pedido já está PAGO
       if (pedido.status === 'PAGO') {
         return res.status(409).json({ erro: 'Pedido já está pago.' });
       }
-    } catch (err) {
-      try {
-        await api.patch(`/orders/${pedidoId}`, { status: 'CANCELADO' });
-      } catch (_) {}
+    } catch {
+      await api.patch(`/orders/${pedidoId}`, { status: 'CANCELADO' });
       return res.status(404).json({ erro: 'Pedido não encontrado. Cancelado.' });
     }
 
-    // 2) Salvar pagamentos no Postgres (Inicialmente PENDENTE)
+    // 2) Criar pagamentos PENDENTES
     for (const p of pagamentos) {
       await prisma.pagamento.create({
-        data: {
-          pedidoId: pedidoId.toString(),
-          metodo: p.metodo,
-          valor: p.valor,
-          status: 'PENDENTE'
-        }
+        data: { pedidoId: pedidoId.toString(), metodo: p.metodo, valor: p.valor, status: 'PENDENTE' }
       });
     }
 
-    // 2.5) Calcular valor total pago E VALIDAR contra o valor do pedido
+    // 3) Validar valores
     const totalPago = pagamentos.reduce((acc, p) => acc + (p.valor || 0), 0);
     const valorTotalPedido = pedido.total || 0;
 
-    if (parseFloat(totalPago).toFixed(2) !== parseFloat(valorTotalPedido).toFixed(2)) {
-      console.error(`❌ Falha na validação de valor. Pago: ${totalPago}, Pedido: ${valorTotalPedido}`);
-
+    if (totalPago < valorTotalPedido) {
       await api.patch(`/orders/${pedidoId}`, { status: 'CANCELADO' });
       await prisma.pagamento.updateMany({
         where: { pedidoId: pedidoId.toString() },
         data: { status: 'RECUSADO' }
       });
 
+      await publishEvent({
+        pedidoId,
+        status: 'RECUSADO',
+        motivo: 'Valor pago menor que o valor total do pedido',
+        totalPago,
+        valorTotalPedido
+      });
+
       return res.status(400).json({
-        erro: `Valor pago (${totalPago.toFixed(2)}) não corresponde ao valor do pedido (${valorTotalPedido.toFixed(2)}). Pedido cancelado.`,
-        detalhe: 'Valores inconsistentes'
+        erro: `Valor pago insuficiente (${totalPago}) < total do pedido (${valorTotalPedido}). Pedido cancelado.`,
       });
     }
 
-    // 3) Definir método de pagamento
-    const metodoUsado = pagamentos[0]?.metodo || "desconhecido";
+    const metodoUsado = pagamentos[0]?.metodo || 'desconhecido';
 
-    // 4) Atualizar status e método do pedido no Mongo e Pagamentos no Postgres
-    try {
-      await api.patch(`/orders/${pedidoId}`, { status: 'PAGO', metodoPagamento: metodoUsado });
-      pedido.status = 'PAGO';
-      pedido.metodoPagamento = metodoUsado;
+    // 4) Atualizar pedido e pagamentos
+    await api.patch(`/orders/${pedidoId}`, { status: 'PAGO', metodoPagamento: metodoUsado });
+    await prisma.pagamento.updateMany({
+      where: { pedidoId: pedidoId.toString() },
+      data: { status: 'PAGO' }
+    });
 
-      await prisma.pagamento.updateMany({
-        where: { pedidoId: pedidoId.toString() },
-        data: { status: 'PAGO' }
+    // 5) Atualizar estoque
+    for (const item of pedido.itens) {
+      await axios.patch(`http://api-produtos:3001/products/${item.produtoId}/estoque`, {
+        quantidade: -item.quantidade
       });
-    } catch (err) {
-      console.error('❌ Falha ao atualizar status do pedido:', err.message);
+    }
 
+    // 6) Enviar evento de sucesso ao RabbitMQ
+    await publishEvent({
+      pedidoId,
+      status: 'PAGO',
+      metodo: metodoUsado,
+      total: valorTotalPedido,
+      timestamp: new Date().toISOString()
+    });
+
+    res.json({ mensagem: 'Pagamento confirmado e pedido atualizado para PAGO', pedido });
+
+  } catch (error) {
+    console.error('❌ Erro inesperado no pagamento:', error.message);
+
+    try {
       await api.patch(`/orders/${pedidoId}`, { status: 'CANCELADO' });
       await prisma.pagamento.updateMany({
         where: { pedidoId: pedidoId.toString() },
         data: { status: 'CANCELADO' }
       });
-
-      return res.status(500).json({ erro: 'Falha ao atualizar status do pedido. Cancelado.' });
-    }
-
-    // 5) Atualizar estoque dos produtos
-    try {
-      for (const item of pedido.itens) {
-        const response = await axios.patch(
-          `http://api-produtos:3001/products/${item.produtoId}/estoque`,
-          { quantidade: -item.quantidade } // 🔹 sempre decrementa no pagamento
-        );
-
-        // Garantia extra: se não atualizar o produto, dispara erro
-        if (!response.data || response.status !== 200) {
-          throw new Error(`Falha ao atualizar estoque do produto ${item.produtoId}`);
-        }
-      }
-    } catch (err) {
-      console.error('❌ Falha ao atualizar estoque:', err.message);
-
-      // 🔄 Rollback em caso de falha no estoque
-      try {
-        await api.patch(`/orders/${pedidoId}`, { status: 'CANCELADO' });
-        await prisma.pagamento.updateMany({
-          where: { pedidoId: pedidoId.toString() },
-          data: { status: 'CANCELADO' }
-        });
-      } catch (rollbackErr) {
-        console.error('⚠️ Falha ao executar rollback após erro no estoque:', rollbackErr.message);
-      }
-
-      return res.status(500).json({ erro: 'Falha ao atualizar estoque. Pedido cancelado.' });
-    }
-
-    // ✅ Se chegou até aqui, tudo certo
-    res.json({
-      mensagem: 'Pagamento confirmado e pedido atualizado para PAGO',
-      pedido
-    });
-
-  } catch (error) {
-    console.error('❌ Erro inesperado no pagamento:', error);
-
-    // Rollback genérico em caso de falha inesperada
-    try {
-      await api.patch(`/orders/${req.body.pedidoId}`, { status: 'CANCELADO' });
-      await prisma.pagamento.updateMany({
-        where: { pedidoId: req.body.pedidoId.toString() },
-        data: { status: 'CANCELADO' }
-      });
     } catch (_) {}
 
-    res.status(500).json({
-      erro: 'Erro ao confirmar pagamento. Pedido cancelado.',
-      detalhe: error.message
+    await publishEvent({
+      pedidoId,
+      status: 'CANCELADO',
+      motivo: error.message || 'Erro inesperado no processamento do pagamento'
     });
+
+    res.status(500).json({ erro: 'Erro ao confirmar pagamento. Pedido cancelado.' });
   }
 };
 

@@ -98,9 +98,75 @@ services:
       - pedidos-db
       - api-produtos
       - api-usuarios
+  
+  
+  influxdb:
+    image: influxdb:1.8
+    container_name: influxdb
+    restart: always
+    ports:
+      - "8086:8086"
+    environment:
+      - INFLUXDB_DB=k6
+      - INFLUXDB_HTTP_AUTH_ENABLED=false
+    volumes:
+      - influxdb_data:/var/lib/influxdb
+      - ./influxdb-init/init-influxdb.sh:/docker-entrypoint-initdb.d/init-influxdb.sh
+
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - influxdb
+    volumes:
+      - grafana_data:/var/lib/grafana
+
+    # === K6 ===
+  k6:
+    image: grafana/k6:latest
+    container_name: k6_runner
+    depends_on:
+      - api-pagamentos
+      - api-pedidos
+      - influxdb
+    volumes:
+      - ./k6-scripts:/scripts
+    entrypoint: ["k6"]
+    networks:
+      - default
+  api-notifica:
+    build: ./api-notifica
+    container_name: api-notifica
+    ports:
+      - "3005:3005"
+    environment:
+      PORT: 3005
+      RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672
+    depends_on:
+      - rabbitmq
+    command: node ./index.js
+
+  rabbitmq:
+    image: rabbitmq:3.9-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin
+
 
 volumes:
   produtos_data:
   usuarios_data:
   pagamentos_data:
   pedidos_data:
+  influxdb_data:
+  grafana_data:
