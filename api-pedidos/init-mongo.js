@@ -1,3 +1,9 @@
-db = db.getSiblingDB('test');
+db = db.getSiblingDB("pedidos");
 
-db.createCollection('pedidos');
+db.createUser({
+  user: "user",
+  pwd: "pass",
+  roles: [{ role: "readWrite", db: "pedidos" }]
+});
+
+db.createCollection("pedidos");

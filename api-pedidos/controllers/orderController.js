@@ -1,3 +1,6 @@
+const axios = require("axios");
+const Pedido = require("../models/Order");
+const { enviarPedidoKafka } = require("../kafka/producer");
 
 // PATCH /orders/:id - Atualizar status e método do pedido
 const atualizarStatusPedido = async (req, res) => {
@@ -17,8 +20,6 @@ const atualizarStatusPedido = async (req, res) => {
     res.status(500).json({ erro: 'Erro ao atualizar pedido', detalhe: error.message });
   }
 };
-const axios = require("axios");
-const Pedido = require("../models/Order");
 
 // Função auxiliar para calcular total
 const calcularTotal = (itens) => {
@@ -47,32 +48,35 @@ const buscarPedido = async (req, res) => {
   }
 };
 
-// POST /orders
 const criarPedido = async (req, res) => {
-  const { usuarioId, itens } = req.body;
+  const { usuarioId, itens, metodoPagamento } = req.body;
 
   if (!usuarioId || !Array.isArray(itens) || itens.length === 0) {
     return res.status(400).json({ erro: "Usuário ou itens inválidos" });
   }
 
+  if (!metodoPagamento) {
+    return res.status(400).json({ erro: "O campo metodoPagamento é obrigatório" });
+  }
+
   try {
-    // Buscar usuário no microserviço de usuários
+    // Buscar usuário
     let usuario;
     try {
       const resUser = await axios.get(`http://api-usuarios:3002/users/${usuarioId}`);
       usuario = resUser.data;
-    } catch (err) {
+    } catch {
       return res.status(404).json({ erro: "Usuário não encontrado" });
     }
 
-    // Buscar produtos no microserviço de produtos e validar estoque
+    // Buscar produtos e validar
     const itensComSnapshot = [];
     for (const item of itens) {
       let produto;
       try {
         const resProd = await axios.get(`http://api-produtos:3001/products/${item.produtoId}`);
         produto = resProd.data;
-      } catch (err) {
+      } catch {
         return res.status(404).json({ erro: `Produto ID ${item.produtoId} não encontrado` });
       }
 
@@ -90,8 +94,10 @@ const criarPedido = async (req, res) => {
       });
     }
 
+    // Calcular total
     const total = calcularTotal(itensComSnapshot);
 
+    // Criar pedido no banco
     const pedido = new Pedido({
       usuarioId,
       usuarioSnapshot: {
@@ -101,16 +107,52 @@ const criarPedido = async (req, res) => {
       itens: itensComSnapshot,
       total,
       status: "AGUARDANDO PAGAMENTO",
-      metodoPagamento: null // definido após o pagamento
+      metodoPagamento
     });
 
     await pedido.save();
 
+    // 🔥🔥 NOVO: Criar pagamento automaticamente no payment-service
+    try {
+      await axios.post("http://api-pagamentos:3003/payments", {
+        pedidoId: pedido._id,
+        pagamentos: [
+          {
+            metodo: metodoPagamento,
+            valor: total
+          }
+        ]
+      });
+      console.log("💰 Pagamento PENDENTE criado no payment-service.");
+    } catch (err) {
+      console.error("❌ Erro ao criar pagamento no payment-service:", err.message);
+    }
+
+    // Enviar evento Kafka
+    await enviarPedidoKafka({
+      orderId: pedido._id,
+      clientId: usuarioId,
+      itens: itensComSnapshot,
+      metodoPagamento,
+      valor: total,
+      quantidade: itens?.[0]?.quantidade ?? 1,
+      date: new Date().toISOString(),
+      total,
+      paymentInfo: {
+        metodo: metodoPagamento,
+        valor: total
+      }
+    });
+
     res.status(201).json(pedido);
   } catch (error) {
+    console.error("Erro ao criar pedido:", error);
     res.status(500).json({ erro: "Erro ao criar pedido", detalhe: error.message });
   }
 };
+
+
+
 
 const listarPedidosPorUsuario = async (req, res) => {
   const { usuarioId } = req.params;
