@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # -------------------
   # BANCOS DE DADOS
@@ -57,28 +55,34 @@ services:
   # -------------------
   api-produtos:
     build: ./api-produtos
-    ports:
-      - "3001:3001"
+    expose:
+      - "3001"
     environment:
       DATABASE_URL: "postgresql://user:pass@produtos-db:5432/produtos"
+      REDIS_HOST: redis-cache
+      REDIS_PORT: 6379
       PORT: 3001
     depends_on:
       - produtos-db
+      - redis-cache
 
   api-usuarios:
     build: ./api-usuarios
-    ports:
-      - "3002:3002"
+    expose:
+      - "3002"
     environment:
       DATABASE_URL: "postgresql://user:pass@usuarios-db:5432/usuarios"
+      REDIS_HOST: redis-cache
+      REDIS_PORT: 6379
       PORT: 3002
     depends_on:
       - usuarios-db
+      - redis-cache
 
   api-pagamentos:
     build: ./api-pagamentos
-    ports:
-      - "3003:3003"
+    expose:
+      - "3003"
     environment:
       DATABASE_URL: "postgresql://user:pass@pagamentos-db:5432/pagamentos"
       MONGO_URL: "mongodb://user:pass@pedidos-db:27017/pedidos?authSource=pedidos"
@@ -90,8 +94,8 @@ services:
 
   api-pedidos:
     build: ./api-pedidos
-    ports:
-      - "3004:3004"
+    expose:
+      - "3004"
     environment:
       MONGO_URL: "mongodb://user:pass@pedidos-db:27017/pedidos?authSource=pedidos"
       PORT: 3004
@@ -128,11 +132,12 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
 
-    # === K6 ===
   k6:
     image: grafana/k6:latest
     container_name: k6_runner
     depends_on:
+      - api-produtos
+      - api-usuarios
       - api-pagamentos
       - api-pedidos
       - influxdb
@@ -141,11 +146,70 @@ services:
     entrypoint: ["k6"]
     networks:
       - default
+# === KONG API GATEWAY ===
+  kong-db:
+    image: postgres:15
+    container_name: kong_db
+    restart: always
+    environment:
+      POSTGRES_USER: kong
+      POSTGRES_PASSWORD: kong_password
+      POSTGRES_DB: kong
+    volumes:
+      - kong_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5436:5432"
+
+  kong-migration:
+    image: kong:3.4
+    container_name: kong_migration
+    restart: on-failure
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-db
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong_password
+    command: "kong migrations bootstrap"
+    depends_on:
+      - kong-db
+
+  kong-gateway:
+    image: kong:3.4
+    container_name: kong_gateway
+    restart: always
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-db
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong_password
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001, 0.0.0.0:8444 ssl
+    ports:
+      - "8000:8000"
+      - "8443:8443"
+      - "8001:8001"
+      - "8444:8444"
+    depends_on:
+      - kong-migration
+
+  konga:
+    image: pantsel/konga
+    container_name: konga_ui
+    restart: always
+    environment:
+      NODE_ENV: development
+      KONGA_KONG_ADMIN_URL: http://kong-gateway:8001
+    ports:
+      - "1337:1337"
+    depends_on:
+      - kong-gateway
+
   api-notifica:
     build: ./api-notifica
     container_name: api-notifica
-    ports:
-      - "3005:3005"
     environment:
       PORT: 3005
       RABBITMQ_URL: amqp://admin:admin@rabbitmq:5672
@@ -198,7 +262,36 @@ services:
       KAFKA_CLUSTERS_0_NAME: local-kafka-cluster
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
       DYNAMIC_CONFIG_ENABLED: 'true'
+  
+  redis-cache:
+    image: redis:7-alpine
+    container_name: redis_cache
+    restart: always
+    ports:
+      - "6378:6379"
+    volumes:
+      - redis_data:/data
 
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis_commander_lab
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=local:redis-cache:6379
+    depends_on:
+      - redis-cache
+
+  kong-bootstrap:
+    image: curlimages/curl:latest
+    container_name: kong-bootstrap
+    depends_on:
+      - kong-gateway
+    volumes:
+      - ./kong/bootstrap.sh:/bootstrap.sh:ro
+    entrypoint: ["/bin/sh", "/bootstrap.sh"]
+   
+  
 
 volumes:
   produtos_data:
@@ -207,3 +300,5 @@ volumes:
   pedidos_data:
   influxdb_data:
   grafana_data:
+  redis_data:
+  kong_postgres_data:

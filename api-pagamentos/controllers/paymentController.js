@@ -146,12 +146,17 @@ async function processarEventoDePagamento(evento) {
  * 📌 5) HTTP PATCH /payments/:id/process
  * ------------------------------------------------------*/
 const processaPagamento = async (req, res) => {
-  const { id } = req.params;
+  const { id } = req.params; // Este é o pedidoId
 
   try {
-    const payment = await prisma.pagamento.findUnique({
-      where: { id: Number(id) },
+    // ✅ CORREÇÃO 1: Use findFirst em vez de findUnique
+    const payment = await prisma.pagamento.findFirst({
+      where: { 
+        pedidoId: String(id),
+        status: 'PENDENTE' // Opcional: apenas pagamentos pendentes
+      },
     });
+    
     if (!payment)
       return res.status(404).json({ error: 'Pagamento não encontrado' });
 
@@ -187,8 +192,9 @@ const processaPagamento = async (req, res) => {
           produtos: productsDetails,
         });
 
+        // ✅ CORREÇÃO 2: Use payment.id (string) em vez de Number(id)
         await prisma.pagamento.update({
-          where: { id: Number(id) },
+          where: { id: payment.id },
           data: { status: 'CANCELADO' },
         });
 
@@ -211,8 +217,9 @@ const processaPagamento = async (req, res) => {
         total: payment.valor,
       });
 
+      // ✅ CORREÇÃO 3: Use payment.id (string) em vez de Number(id)
       await prisma.pagamento.update({
-        where: { id: Number(id) },
+        where: { id: payment.id },
         data: { status: 'CANCELADO' },
       });
 
@@ -227,7 +234,7 @@ const processaPagamento = async (req, res) => {
       });
     }
 
-    // ✔ Atualiza estoque
+    // ✅ Atualiza estoque
     for (const item of productsDetails) {
       await axios.patch(
         `http://api-produtos:3001/products/${item.productId}/estoque`,
@@ -235,9 +242,9 @@ const processaPagamento = async (req, res) => {
       );
     }
 
-    // ✔ Marca pagamento como pago
+    // ✅ CORREÇÃO 4: Use payment.id (string) em vez de Number(id)
     await prisma.pagamento.update({
-      where: { id: Number(id) },
+      where: { id: payment.id },
       data: { status: 'PAGO' },
     });
 
@@ -256,7 +263,7 @@ const processaPagamento = async (req, res) => {
 
     await publishEvent(eventoTransacao);
 
-    res.json({ message: 'Pagamento processado', id });
+    res.json({ message: 'Pagamento processado', id: payment.id });
   } catch (err) {
     console.error('❌ ERRO:', err.message);
     res.status(500).json({ error: 'Erro ao processar pagamento' });
