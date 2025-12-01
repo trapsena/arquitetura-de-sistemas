@@ -364,28 +364,142 @@ Isso sobe PostgreSQL + PgAdmin + MongoDB (ou usa Atlas se configurado).
 
 ### Produtos
 - `GET /products` → Lista todos os produtos
+curl --location --request GET 'http://localhost:8000/products' \
+--header 'apikey: UwIg6JnH8wky6w3tPbnhAdR7CwgGiray' \
+--header 'Content-Type: application/json' \
+--data '{
+  "nome": "comida",
+  "preco": 6,
+  "estoque": 20
+}'
 - `GET /products/:id` → Lista um produto específico por ID
+curl --location 'http://localhost:8000/products/1' \
+--header 'apikey;'
 - `POST /products` → Cria produto
+curl --location 'http://localhost:8000/products' \
+--header 'apikey: UwIg6JnH8wky6w3tPbnhAdR7CwgGiray' \
+--header 'Content-Type: application/json' \
+--data '{
+  "nome": "comida",
+  "preco": 6,
+  "estoque": 20
+}
+'
 - `PUT /products/:id` → Edita um produto específico
+curl --location --request PUT 'http://localhost:8000/products/5' \
+--header 'Content-Type: application/json' \
+--data '{
+  "estoque": 20
+}
+'
 - `DELETE /products/:id` → Lista todos os produtos
+curl --location --request DELETE 'http://localhost:8000/products/1' \
+--header 'apikey;'
 - `PATCH /products/:id/estoque` → Decrementa estoque  
+curl --location --request PATCH 'http://localhost:8000/products/1/estoque' \
+--header 'apikey;' \
+--header 'Content-Type: application/json' \
+--data '{
+    "quantidade": 10
+}'
 
 ### Usuários
 - `GET /users` → Lista todos os usuários
+curl --location 'http://localhost:8000/users' \
+--header 'apikey: 2pNdX7mrtE83L8ACc9wjT5Oy9hCrhUo6' \
+--header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJldmVudC1jaGVja2luLWFwaSIsInN1YiI6Im9wZXJhdG9yIiwiZXZlbnRJZCI6ImV2dF8xMjMiLCJpYXQiOjE3MjQ4ODAwMDAsImV4cCI6MTk5OTk5OTk5OX0.8b7cRrJq1u8hQWmF2Z0k3yV5aN4pX6sT9uE1L3cB7Dg' \
+--data ''
+
+
 - `GET /users/:id` → Lista um usuário específico por ID 
+curl --location 'http://localhost:8000/users/1' \
+--header 'apikey: 65LgcNHdN01s6h7AybFxhFUKEfSC6JqQ' \
+--data ''
+'
 - `POST /users` → Cria usuário
+curl --location 'http://localhost:8000/users' \
+--header 'apikey: UwIg6JnH8wky6w3tPbnhAdR7CwgGiray' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "nome": "Sena",
+    "email": "mcnescau7@gmail.com"
+}
+'
 - `PUT /users/:id` → Dar update em um usuário
+curl --location --request PUT 'http://localhost:3002/users/3' \
+--header 'apikey;' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+  "email": "andreypeil@gmail.com"
+}
+'
 - `DELETE /users/:id` → Cria usuário 
+curl --location --request DELETE 'http://localhost:3002/users/2' \
+--header 'apikey;'
 
 ### Pedidos
 - `GET /orders/` → Busca pedido (com total e snapshots)
+curl --location 'http://localhost:8000/orders' \
+--header 'apikey: UwIg6JnH8wky6w3tPbnhAdR7CwgGiray'
+ - 
 - `GET /orders/:id` → Busca pedido (com total e snapshots)
-- `POST /orders` → Cria pedido (`usuarioId`, `itens`)  
+curl --location 'http://localhost:8000/orders/692d4b8a1b5849fa84e92e46' \
+--header 'apikey: UwIg6JnH8wky6w3tPbnhAdR7CwgGiray'
+- `POST /orders` → Cria pedido (`usuarioId`, `itens`) 
+curl --location 'http://localhost:8000/orders' \
+--header 'apikey: UwIg6JnH8wky6w3tPbnhAdR7CwgGiray' \
+--header 'Content-Type: application/json' \
+--data '{
+  "usuarioId": 1,
+  "itens": [
+    { "produtoId": 1, "quantidade":4  }
+  ],
+  "metodoPagamento": "pix"
+}'
+'`GET /orders/:id` → acha pedido por usuario pedido (com total e snapshots)
+curl --location 'http://localhost:8000/orders/usuario/2' \
+--header 'apikey;'
   
 
 ### Pagamentos
 - `POST /payments/confirmar` → Confirma pagamento, atualiza pedido e estoque  
-
+curl --location 'http://localhost:8000/payments' \
+--header 'apikey: 2pNdX7mrtE83L8ACc9wjT5Oy9hCrhUo6' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJldmVudC1jaGVja2luLWFwaSIsInN1YiI6Im9wZXJhdG9yIiwiZXZlbnRJZCI6ImV2dF8xMjMiLCJpYXQiOjE3MjQ4ODAwMDAsImV4cCI6MTk5OTk5OTk5OX0.8b7cRrJq1u8hQWmF2Z0k3yV5aN4pX6sT9uE1L3cB7Dg' \
+--data '{
+  "pedidoId": "692297f46eecd6413028b7dc",
+  "pagamentos": [
+    {
+      "metodo": "pix",
+      "valor": 24
+    }
+  ]
+}'
+`POST /payments/:id` → Busca pedido (com total e snapshots)
+curl --location 'http://localhost:8000/payments' \
+--header 'apikey: 2pNdX7mrtE83L8ACc9wjT5Oy9hCrhUo6' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJldmVudC1jaGVja2luLWFwaSIsInN1YiI6Im9wZXJhdG9yIiwiZXZlbnRJZCI6ImV2dF8xMjMiLCJpYXQiOjE3MjQ4ODAwMDAsImV4cCI6MTk5OTk5OTk5OX0.8b7cRrJq1u8hQWmF2Z0k3yV5aN4pX6sT9uE1L3cB7Dg' \
+--data '{
+  "pedidoId": "692297f46eecd6413028b7dc",
+  "pagamentos": [
+    {
+      "metodo": "pix",
+      "valor": 24
+    }
+  ]
+}'
+`GET /payments/:id` → Busca pedido (com total e snapshots)
+curl --location 'http://localhost:8000/payments?=692d4b8a1b5849fa84e92e46' \
+--header 'apikey: UwIg6JnH8wky6w3tPbnhAdR7CwgGiray'
+`PATCH /payments/:id` → Busca pedido (com total e snapshots)
+curl --location --request PATCH 'http://localhost:8000/payments/692d4b8a1b5849fa84e92e46/process' \
+--header 'apikey: UwIg6JnH8wky6w3tPbnhAdR7CwgGiray' \
+--data ''
 ---
 =======
+
+
+
 >>>>>>> bac62a104e61effa34af6476d0d07a115376d216
