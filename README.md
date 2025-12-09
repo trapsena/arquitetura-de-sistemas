@@ -498,6 +498,9 @@ curl --location --request PATCH 'http://localhost:8000/payments/692d4b8a1b5849fa
 --header 'apikey: UwIg6JnH8wky6w3tPbnhAdR7CwgGiray' \
 --data ''
 ---
+
+ Recupere a chave de API:
+   curl http://localhost:8001/consumers/frontend-app/key-auth⁠
 =======
 
 
